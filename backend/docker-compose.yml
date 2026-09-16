@@ -1,0 +1,46 @@
+# Explicit project name. Without this, Compose derives it from the directory
+# name ("backend"), which collides with other projects that also have a
+# backend/ folder and would treat their containers as orphans.
+name: vaultstream
+
+services:
+  db:
+    image: postgres:17-alpine
+    container_name: vaultstream-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: vaultstream
+      POSTGRES_PASSWORD: vaultstream
+      POSTGRES_DB: vaultstream
+    ports:
+      - "5433:5432"
+    volumes:
+      - vaultstream_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vaultstream -d vaultstream"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Separate throwaway database for the test suite so tests never touch dev data.
+  db-test:
+    image: postgres:17-alpine
+    container_name: vaultstream-db-test
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: vaultstream
+      POSTGRES_PASSWORD: vaultstream
+      POSTGRES_DB: vaultstream_test
+    ports:
+      - "5434:5432"
+    # tmpfs: test data is disposable, keep it in RAM for speed
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vaultstream -d vaultstream_test"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  vaultstream_pgdata:

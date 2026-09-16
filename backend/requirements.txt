@@ -1,0 +1,36 @@
+# VaultStream backend dependencies
+# Verified against Python 3.14.2 on Windows.
+
+# --- Web framework ---
+fastapi==0.141.1
+uvicorn==0.53.0
+starlette==1.6.0
+
+# --- Config / validation ---
+pydantic==2.13.5
+pydantic-settings==2.15.0
+python-dotenv==1.2.3
+
+# --- Database ---
+SQLAlchemy==2.0.54
+alembic==1.20.0
+psycopg[binary]==3.3.5
+
+# --- Auth ---
+# NOTE: passlib is deliberately NOT used. It is unmaintained (last release 2020)
+# and raises on bcrypt >= 4.1 because it reads the removed `bcrypt.__about__`
+# attribute. We call bcrypt directly instead.
+bcrypt==5.0.0
+PyJWT==2.14.0
+
+# --- Data / ML (ETL + recommender) ---
+pandas==3.0.5
+numpy==2.5.3
+scikit-learn==1.9.1
+scipy==1.18.1
+
+# --- HTTP client (TMDB resolver) ---
+httpx==0.28.1
+
+# --- Testing ---
+pytest==9.1.1
