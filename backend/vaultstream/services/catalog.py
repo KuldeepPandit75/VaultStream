@@ -26,11 +26,14 @@ from vaultstream.schemas.catalog import (
     KeywordOut,
     MovieDetail,
     MovieSummary,
+    OmdbDataOut,
+    OmdbRatingOut,
     SortField,
     SortOrder,
 )
 from vaultstream.models.media import MovieMedia
 from vaultstream.services import media as media_service
+from vaultstream.services import omdb as omdb_service
 from vaultstream.services.images import backdrop_url, imdb_url, poster_url, profile_url
 
 # Crew jobs that read as "directed by" on a detail page.
@@ -274,6 +277,30 @@ def _to_summary(
     )
 
 
+def get_movies_by_ids(session: Session, row_indexes: list[int]) -> list[MovieSummary]:
+    """Batch summary lookup for a client-held list of row_indexes.
+
+    No quality-floor filtering here: if a caller already knows the row_index
+    (e.g. from their own watch history), hiding it again would be surprising.
+    """
+    if not row_indexes:
+        return []
+
+    movies = list(
+        session.execute(
+            select(Movie).where(Movie.row_index.in_(row_indexes))
+        ).scalars()
+    )
+    tmdb_ids = [movie.tmdb_id for movie in movies]
+    genre_map = _genre_names_for(session, tmdb_ids)
+    media_map = media_service.get_cached_many(session, tmdb_ids)
+
+    return [
+        _to_summary(movie, genre_map.get(movie.tmdb_id, []), media_map.get(movie.tmdb_id))
+        for movie in movies
+    ]
+
+
 def get_movie_detail(
     session: Session, row_index: int, *, resolve_media: bool = True
 ) -> MovieDetail | None:
@@ -364,6 +391,27 @@ def get_movie_detail(
 
     crew.sort(key=lambda member: (CREW_JOB_PRIORITY.get(member.job, 99), member.name))
 
+    # Fetch OMDb data (live IMDB rating, RT, Metacritic, awards, etc.)
+    omdb_out: OmdbDataOut | None = None
+    omdb = omdb_service.get_omdb_data(session, movie.imdb_id)
+    if omdb is not None:
+        omdb_out = OmdbDataOut(
+            imdb_rating=omdb.imdb_rating,
+            imdb_votes=omdb.imdb_votes,
+            rated=omdb.rated,
+            awards=omdb.awards,
+            country=omdb.country,
+            box_office=omdb.box_office,
+            production=omdb.production,
+            dvd=omdb.dvd,
+            ratings=[
+                OmdbRatingOut(source=r.source, value=r.value)
+                for r in omdb.ratings
+            ],
+            metascore=omdb.metascore,
+            plot=omdb.plot,
+        )
+
     return MovieDetail(
         row_index=movie.row_index,
         tmdb_id=movie.tmdb_id,
@@ -395,6 +443,7 @@ def get_movie_detail(
         cast=cast,
         crew=crew,
         directors=[member.name for member in crew if member.job in DIRECTOR_JOBS],
+        omdb=omdb_out,
     )
 
 

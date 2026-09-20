@@ -126,6 +126,40 @@ def _titles(payload: dict) -> list[str]:
 # --------------------------------------------------------------------------- #
 # quality floor + dedup
 # --------------------------------------------------------------------------- #
+def test_batch_resolves_multiple_row_indexes(api: TestClient) -> None:
+    body = api.get("/movies/batch", params={"ids": [0, 1]}).json()
+    titles = {item["title"] for item in body}
+    assert titles == {"Toy Story", "Jumanji"}
+
+
+def test_batch_silently_omits_unknown_ids(api: TestClient) -> None:
+    """A stale localStorage entry for a removed title should not 404 the batch."""
+    body = api.get("/movies/batch", params={"ids": [0, 999999]}).json()
+    assert [item["title"] for item in body] == ["Toy Story"]
+
+
+def test_batch_without_ids_is_rejected(api: TestClient) -> None:
+    """ids is required; an empty list serialises identically to an absent param."""
+    assert api.get("/movies/batch").status_code == 422
+
+
+def test_batch_is_capped_and_deduplicated(api: TestClient) -> None:
+    """Repeats collapse and an oversized id list is truncated, not rejected."""
+    body = api.get("/movies/batch", params={"ids": [0, 0, 0, 1]}).json()
+    assert len(body) == 2
+
+
+def test_batch_ignores_the_quality_floor(api: TestClient) -> None:
+    """A caller who already knows row_index 6 (Obscure Film) should get it back."""
+    body = api.get("/movies/batch", params={"ids": [6]}).json()
+    assert [item["title"] for item in body] == ["Obscure Film"]
+
+
+def test_batch_is_public(db_client: TestClient) -> None:
+    """No auth required -- this backs the anonymous localStorage feature."""
+    assert db_client.get("/movies/batch", params={"ids": [0]}).status_code == 200
+
+
 def test_default_listing_applies_quality_floor(api: TestClient) -> None:
     """Adult, poster-less, and barely-voted titles stay off browse surfaces."""
     body = api.get("/movies").json()

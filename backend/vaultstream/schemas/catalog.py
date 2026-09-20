@@ -105,6 +105,29 @@ class StreamSource(BaseModel):
     video_type: str | None = None
 
 
+class OmdbRatingOut(BaseModel):
+    """One rating from the OMDb Ratings array (IMDb / RT / Metacritic)."""
+
+    source: str
+    value: str
+
+
+class OmdbDataOut(BaseModel):
+    """Extended metadata from the OMDb API (IMDB, Rotten Tomatoes, etc.)."""
+
+    imdb_rating: float | None = None
+    imdb_votes: str | None = None
+    rated: str | None = None  # Content rating: PG-13, R, etc.
+    awards: str | None = None
+    country: str | None = None
+    box_office: str | None = None
+    production: str | None = None
+    dvd: str | None = None
+    ratings: list[OmdbRatingOut] = Field(default_factory=list)
+    metascore: str | None = None
+    plot: str | None = None
+
+
 class MovieDetail(MovieSummary):
     """Full payload for the detail page."""
 
@@ -127,6 +150,7 @@ class MovieDetail(MovieSummary):
     cast: list[CastMemberOut] = Field(default_factory=list)
     crew: list[CrewMemberOut] = Field(default_factory=list)
     directors: list[str] = Field(default_factory=list)
+    omdb: OmdbDataOut | None = None
 
 
 class Page(BaseModel, Generic[T]):

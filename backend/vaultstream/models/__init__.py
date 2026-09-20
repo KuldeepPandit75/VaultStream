@@ -20,6 +20,7 @@ from vaultstream.models.catalog import (
 )
 from vaultstream.models.history import WatchEvent, WatchProgress
 from vaultstream.models.media import MovieMedia
+from vaultstream.models.omdb import OmdbCache
 
 __all__ = [
     "RefreshToken",
@@ -35,5 +36,6 @@ __all__ = [
     "MovieKeyword",
     "MovieLink",
     "MovieMedia",
+    "OmdbCache",
     "Person",
 ]

@@ -120,6 +120,35 @@ def list_movies(
     return Page.build(items, total, page, effective_page_size)
 
 
+MAX_BATCH_IDS = 40
+
+
+@router.get(
+    "/movies/batch",
+    response_model=list[MovieSummary],
+    summary="Resolve several row_indexes to summaries in one call",
+)
+def get_movies_batch(
+    db: Annotated[Session, Depends(get_db)],
+    ids: Annotated[
+        list[int],
+        Query(description=f"row_index values, repeatable. Capped at {MAX_BATCH_IDS}."),
+    ],
+) -> list[MovieSummary]:
+    """Public, read-only hydration for client-held row_indexes.
+
+    Built for anonymous (localStorage-based) history/recommendations, where the
+    browser only has row_index values and needs posters/titles to render them.
+    Order is not guaranteed to match ``ids``; unknown ids are silently omitted
+    rather than 404ing, since a stale localStorage entry (e.g. a removed title)
+    should not break the whole request.
+    """
+    unique_ids = sorted({value for value in ids if value >= 0})[:MAX_BATCH_IDS]
+    if not unique_ids:
+        return []
+    return catalog_service.get_movies_by_ids(db, unique_ids)
+
+
 @router.get(
     "/movies/{row_index}",
     response_model=MovieDetail,

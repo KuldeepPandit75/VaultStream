@@ -63,6 +63,11 @@ class Settings(BaseSettings):
     tmdb_api_base: str = "https://api.themoviedb.org/3"
     tmdb_image_base: str = "https://image.tmdb.org/t/p"
 
+    # --- OMDb (free tier: 1,000 req/day; used for live IMDB ratings) ---
+    omdb_api_key: str = "1699ab28"
+    omdb_api_base: str = "https://www.omdbapi.com"
+    omdb_cache_ttl_hours: int = 24
+
     # --- Catalog behaviour ---
     # Browse surfaces hide near-empty records; this is the vote_count floor.
     quality_floor_vote_count: int = 10

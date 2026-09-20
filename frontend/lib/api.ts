@@ -258,3 +258,9 @@ export async function listGenres(): Promise<Genre[]> {
   }
   return body as Genre[];
 }
+
+export async function getSimilarMovies(rowIndex: number): Promise<MovieSummary[]> {
+  const path = `/movies/${rowIndex}/similar`;
+  const body = await request<unknown>(path, { revalidate: REVALIDATE.detail });
+  return Array.isArray(body) ? (body as MovieSummary[]) : [];
+}

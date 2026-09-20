@@ -49,6 +49,25 @@ export interface CrewMember {
   profile_url: string | null;
 }
 
+export interface OmdbRating {
+  source: string;
+  value: string;
+}
+
+export interface OmdbData {
+  imdb_rating: number | null;
+  imdb_votes: string | null;
+  rated: string | null;
+  awards: string | null;
+  country: string | null;
+  box_office: string | null;
+  production: string | null;
+  dvd: string | null;
+  ratings: OmdbRating[];
+  metascore: string | null;
+  plot: string | null;
+}
+
 export interface MovieDetail extends MovieSummary {
   /** True when a playable trailer is known to exist for this title. */
   has_trailer: boolean;
@@ -69,6 +88,7 @@ export interface MovieDetail extends MovieSummary {
   cast: CastMember[];
   crew: CrewMember[];
   directors: string[];
+  omdb: OmdbData | null;
 }
 
 /** Playback descriptor. `type` exists so another driver can be added later. */

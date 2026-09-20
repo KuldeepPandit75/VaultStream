@@ -31,6 +31,19 @@ export function FactList({ movie }: { movie: MovieDetail }) {
     });
   }
 
+  if (movie.omdb) {
+    if (movie.omdb.country) facts.push({ label: "Country", value: movie.omdb.country });
+    if (movie.omdb.box_office && movie.omdb.box_office !== "N/A") {
+      facts.push({ label: "Box Office", value: movie.omdb.box_office });
+    }
+    if (movie.omdb.production && movie.omdb.production !== "N/A") {
+      facts.push({ label: "Production", value: movie.omdb.production });
+    }
+    if (movie.omdb.dvd && movie.omdb.dvd !== "N/A") {
+      facts.push({ label: "DVD Release", value: movie.omdb.dvd });
+    }
+  }
+
   if (facts.length === 0) return null;
 
   return (

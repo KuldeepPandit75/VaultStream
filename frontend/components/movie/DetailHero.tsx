@@ -57,6 +57,11 @@ export function DetailHero({ movie }: { movie: MovieDetail }) {
             </h1>
 
             <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-vault-muted">
+              {movie.omdb?.rated && (
+                <span className="rounded border border-vault-700 px-1.5 py-0.5 text-xs font-medium text-vault-text">
+                  {movie.omdb.rated}
+                </span>
+              )}
               {movie.release_year && (
                 <span className="tabular-nums">{movie.release_year}</span>
               )}
@@ -68,17 +73,28 @@ export function DetailHero({ movie }: { movie: MovieDetail }) {
                   <span>{runtime}</span>
                 </>
               )}
-              {movie.vote_average !== null && movie.vote_average > 0 && (
+              {movie.omdb?.imdb_rating ? (
+                <>
+                  <span aria-hidden="true" className="text-vault-600">
+                    ·
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <RatingBadge rating={movie.omdb.imdb_rating} />
+                    <span className="text-[11px] font-medium uppercase tracking-wide text-vault-faint">IMDb</span>
+                  </span>
+                </>
+              ) : movie.vote_average !== null && movie.vote_average > 0 ? (
                 <>
                   <span aria-hidden="true" className="text-vault-600">
                     ·
                   </span>
                   <span className="flex items-center gap-1.5">
                     <RatingBadge rating={movie.vote_average} />
+                    <span className="text-[11px] font-medium uppercase tracking-wide text-vault-faint">TMDB</span>
                     {votes && <span className="text-vault-faint">({votes} votes)</span>}
                   </span>
                 </>
-              )}
+              ) : null}
             </div>
 
             {movie.genres.length > 0 && (
@@ -132,9 +148,12 @@ export function DetailHero({ movie }: { movie: MovieDetail }) {
                   href={movie.imdb_url}
                   target="_blank"
                   rel="noreferrer noopener"
-                  className="inline-flex items-center gap-2 rounded-full border border-vault-700 px-6 py-3 text-sm font-semibold text-vault-text transition-colors hover:border-brand-500 hover:text-brand-300"
+                  className="inline-flex items-center gap-2 rounded-full border border-vault-700 bg-vault-800 px-6 py-3 text-sm font-semibold text-vault-text transition-all hover:border-brand-500 hover:text-brand-300"
                 >
-                  IMDb
+                  <span className="rounded bg-[#F5C518] px-1 py-0.5 text-[10px] font-black tracking-tight text-black">
+                    IMDb
+                  </span>
+                  View on IMDb
                   <span className="sr-only">(opens in a new tab)</span>
                 </a>
               )}

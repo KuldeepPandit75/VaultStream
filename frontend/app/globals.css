@@ -30,6 +30,13 @@
   --color-warning: #fbbf24;
   --color-negative: #f87171;
 
+  /* External platform brands */
+  --color-imdb: #F5C518;
+  --color-imdb-text: #000000;
+  --color-mc-green: #66CC33;
+  --color-mc-yellow: #FFCC33;
+  --color-mc-red: #FF0000;
+
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
 

@@ -7,6 +7,8 @@ import { CastStrip } from "@/components/movie/CastStrip";
 import { DetailHero } from "@/components/movie/DetailHero";
 import { FactList } from "@/components/movie/FactList";
 import { FranchiseRow } from "@/components/movie/FranchiseRow";
+import { SimilarMoviesRow } from "@/components/movie/SimilarMoviesRow";
+import { IMDbSection } from "@/components/movie/IMDbSection";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ApiError, getMovie } from "@/lib/api";
 import type { MovieDetail } from "@/lib/types";
@@ -99,6 +101,12 @@ export default async function MovieDetailPage({
             collectionName={movie.collection?.name ?? null}
           />
         </Suspense>
+
+        <Suspense fallback={null}>
+          <SimilarMoviesRow rowIndex={movie.row_index} />
+        </Suspense>
+
+        {movie.omdb && <IMDbSection omdb={movie.omdb} />}
 
         {movie.crew.length > 0 && (
           <section aria-labelledby="crew-heading">

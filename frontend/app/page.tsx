@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Suspense } from "react";
 
+import { AnonymousHistoryRows } from "@/components/catalog/AnonymousHistoryRows";
 import { ContinueWatchingRow } from "@/components/catalog/ContinueWatchingRow";
 import { HeroCarousel } from "@/components/catalog/HeroCarousel";
 import { MovieGrid, MovieGridSkeleton } from "@/components/catalog/MovieGrid";
@@ -78,7 +79,9 @@ async function TrendingStrip() {
       {heroMovies.length > 0 && <HeroCarousel movies={heroMovies} />}
 
       <div className="mx-auto max-w-[1600px] px-4 sm:px-6 lg:px-8">
-        {/* Each of these renders nothing when anonymous or when it has no data. */}
+        {/* Each of these renders nothing when it doesn't apply or has no data.
+            The server-rendered rows cover signed-in viewers; AnonymousHistoryRows
+            covers everyone else, built client-side from localStorage. */}
         <div className="mt-10 space-y-12">
           <Suspense fallback={<RowSkeleton label="Continue watching" />}>
             <ContinueWatchingRow />
@@ -87,6 +90,8 @@ async function TrendingStrip() {
           <Suspense fallback={<RowSkeleton label="Top picks for you" />}>
             <RecommendationRows />
           </Suspense>
+
+          <AnonymousHistoryRows />
         </div>
 
         {gridMovies.length > 0 && (
