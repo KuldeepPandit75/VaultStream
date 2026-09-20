@@ -15,8 +15,14 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
 from vaultstream import __version__
+from vaultstream.api import auth as auth_router
+from vaultstream.api import history as history_router
+from vaultstream.api import movies as movies_router
+from vaultstream.api import people as people_router
+from vaultstream.api import recommendations as recommendations_router
 from vaultstream.config import get_settings
 from vaultstream.db import engine
+from vaultstream.services import recommender
 
 logger = logging.getLogger("vaultstream")
 
@@ -32,6 +38,23 @@ async def lifespan(app: FastAPI):
     logger.info(
         "VaultStream starting (env=%s, version=%s)", settings.environment, __version__
     )
+
+    # Warm the recommendation matrix so the first request does not pay for it.
+    # Failure is non-fatal: the catalogue must still serve without recommendations.
+    try:
+        index = recommender.get_index()
+        logger.info(
+            "Vector index ready: %s rows, %s non-zeros",
+            f"{index.n_rows:,}",
+            f"{index.matrix.nnz:,}",
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(
+            "Vector index unavailable (%s). Recommendations will be disabled until "
+            "`python -m etl.vectors` has been run.",
+            exc,
+        )
+
     yield
     engine.dispose()
     logger.info("VaultStream stopped")
@@ -77,6 +100,12 @@ def create_app() -> FastAPI:
         return JSONResponse(
             status_code=200, content={"status": "ok", "database": "ok"}
         )
+
+    app.include_router(auth_router.router)
+    app.include_router(history_router.router)
+    app.include_router(movies_router.router)
+    app.include_router(people_router.router)
+    app.include_router(recommendations_router.router)
 
     return app
 

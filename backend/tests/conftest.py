@@ -17,6 +17,7 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
 
+from vaultstream.config import get_settings
 from vaultstream.db import Base, get_db
 from vaultstream.main import create_app
 
@@ -35,6 +36,29 @@ def _database_reachable(url: str) -> bool:
     except Exception:  # noqa: BLE001 - any failure means "not reachable"
         return False
     return True
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _disable_tmdb_by_default() -> Generator[None, None, None]:
+    """Guarantee the suite never reaches TMDB.
+
+    ``get_movie_detail`` resolves media lazily, so once a real TMDB_API_KEY is
+    present in backend/.env the tests would make live API calls and assert
+    against whatever TMDB happens to return. Clearing the key makes
+    ``media_service.resolve`` degrade to None; tests that need media state insert
+    rows directly, and the ones exercising the HTTP client mock the transport.
+    """
+    original = os.environ.get("TMDB_API_KEY")
+    os.environ["TMDB_API_KEY"] = ""
+    get_settings.cache_clear()
+    try:
+        yield
+    finally:
+        if original is None:
+            os.environ.pop("TMDB_API_KEY", None)
+        else:
+            os.environ["TMDB_API_KEY"] = original
+        get_settings.cache_clear()
 
 
 @pytest.fixture(scope="session")

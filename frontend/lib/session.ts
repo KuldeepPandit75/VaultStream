@@ -8,7 +8,7 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
-import type { AuthUser } from "@/lib/types";
+import type { AuthUser, RecommendationFeed } from "@/lib/types";
 
 const API_BASE_URL = process.env.API_BASE_URL ?? "http://127.0.0.1:8000";
 
@@ -39,6 +39,63 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
   } catch {
     return null;
   }
+}
+
+/**
+ * Authenticated GET against the backend, forwarding the request's cookies.
+ *
+ * Returns null on any failure, so a personalised row simply does not render
+ * rather than taking the whole page down.
+ */
+export async function fetchAuthenticated<T>(path: string): Promise<T | null> {
+  const cookieStore = await cookies();
+  const cookieHeader = cookieStore.toString();
+  if (!cookieHeader) return null;
+
+  try {
+    const response = await fetch(`${API_BASE_URL}${path}`, {
+      headers: { Accept: "application/json", cookie: cookieHeader },
+      // Per-user data must never be cached across requests.
+      cache: "no-store",
+    });
+    if (!response.ok) return null;
+    return (await response.json()) as T;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The personalised home-page block: "Top picks for you" plus
+ * "Because you watched X" rows, or a labelled cold-start row.
+ *
+ * Returns null for anonymous visitors so the caller renders nothing.
+ */
+export async function getRecommendationFeed(
+  limit = 18,
+): Promise<RecommendationFeed | null> {
+  const feed = await fetchAuthenticated<RecommendationFeed>(
+    `/recommendations/feed?limit=${limit}`,
+  );
+  if (!feed || !Array.isArray(feed.rows)) return null;
+  return feed;
+}
+
+/** Titles the signed-in user can resume. Empty for anonymous visitors. */
+export async function getContinueWatching(limit = 20) {
+  const rows = await fetchAuthenticated<unknown>(
+    `/history/continue?limit=${limit}`,
+  );
+  return Array.isArray(rows) ? rows : [];
+}
+
+/** Saved playback position for a title, or 0. */
+export async function getResumePosition(rowIndex: number): Promise<number> {
+  const point = await fetchAuthenticated<{ position_seconds?: number }>(
+    `/history/resume/${rowIndex}`,
+  );
+  const position = point?.position_seconds;
+  return typeof position === "number" && position > 0 ? position : 0;
 }
 
 /**

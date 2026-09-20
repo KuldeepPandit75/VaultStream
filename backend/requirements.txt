@@ -32,5 +32,8 @@ scipy==1.18.1
 # --- HTTP client (TMDB resolver) ---
 httpx==0.28.1
 
+# --- Email validation (pydantic EmailStr) ---
+email-validator==2.3.0
+
 # --- Testing ---
 pytest==9.1.1

@@ -6,4 +6,34 @@ Every model module must be imported here so that Alembic autogenerate and
 
 from __future__ import annotations
 
-__all__: list[str] = []
+from vaultstream.models.auth import RefreshToken, User
+from vaultstream.models.catalog import (
+    Collection,
+    Genre,
+    Keyword,
+    Movie,
+    MovieCredit,
+    MovieGenre,
+    MovieKeyword,
+    MovieLink,
+    Person,
+)
+from vaultstream.models.history import WatchEvent, WatchProgress
+from vaultstream.models.media import MovieMedia
+
+__all__ = [
+    "RefreshToken",
+    "User",
+    "WatchEvent",
+    "WatchProgress",
+    "Collection",
+    "Genre",
+    "Keyword",
+    "Movie",
+    "MovieCredit",
+    "MovieGenre",
+    "MovieKeyword",
+    "MovieLink",
+    "MovieMedia",
+    "Person",
+]

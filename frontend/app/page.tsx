@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { Suspense } from "react";
 
+import { ContinueWatchingRow } from "@/components/catalog/ContinueWatchingRow";
 import { MovieGrid, MovieGridSkeleton } from "@/components/catalog/MovieGrid";
+import { RecommendationRows } from "@/components/catalog/RecommendationRows";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ApiError, listMovies } from "@/lib/api";
 import type { MovieSummary } from "@/lib/types";
@@ -35,6 +37,26 @@ async function loadTrending(): Promise<TrendingResult> {
           : "Could not load titles right now.",
     };
   }
+}
+
+/** Placeholder matching a carousel's shape, so the layout does not jump. */
+function RowSkeleton({ label }: { label: string }) {
+  return (
+    <div aria-hidden="true">
+      <div className="mb-4 h-6 w-48 rounded bg-vault-850 shimmer" />
+      <div className="flex gap-4 overflow-hidden">
+        {Array.from({ length: 8 }, (_, index) => (
+          <div
+            key={`${label}-${index}`}
+            className="w-[8.5rem] shrink-0 space-y-2 sm:w-[9.5rem] lg:w-[10.5rem]"
+          >
+            <div className="shimmer aspect-[2/3] rounded-card bg-vault-850" />
+            <div className="shimmer h-3.5 w-11/12 rounded bg-vault-850" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 async function TrendingStrip() {
@@ -75,7 +97,18 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="mt-16" aria-labelledby="trending-heading">
+      {/* Each of these renders nothing when anonymous or when it has no data. */}
+      <div className="mt-16 space-y-12">
+        <Suspense fallback={<RowSkeleton label="Continue watching" />}>
+          <ContinueWatchingRow />
+        </Suspense>
+
+        <Suspense fallback={<RowSkeleton label="Top picks for you" />}>
+          <RecommendationRows />
+        </Suspense>
+      </div>
+
+      <section className="mt-12" aria-labelledby="trending-heading">
         <h2 id="trending-heading" className="mb-5 text-xl font-semibold tracking-tight">
           Trending now
         </h2>

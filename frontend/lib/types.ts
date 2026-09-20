@@ -121,6 +121,38 @@ export type SortField =
 
 export type SortOrder = "asc" | "desc";
 
+export interface RecommendationRow {
+  key: string;
+  title: string;
+  reason: string | null;
+  /** False for a cold-start row, so the UI can avoid implying personalisation. */
+  personalised: boolean;
+  seed: MovieSummary | null;
+  items: MovieSummary[];
+}
+
+export interface RecommendationFeed {
+  rows: RecommendationRow[];
+  has_history: boolean;
+}
+
+export interface WatchProgress {
+  row_index: number;
+  position_seconds: number;
+  duration_seconds: number | null;
+  completed: boolean;
+  /** 0-100, or null when the duration is unknown. */
+  percent_complete: number | null;
+  updated_at: string;
+  movie: MovieSummary;
+}
+
+export interface ResumePoint {
+  row_index: number;
+  position_seconds: number;
+  completed: boolean;
+}
+
 export interface AuthUser {
   id: number;
   email: string;
