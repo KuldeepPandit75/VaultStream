@@ -50,7 +50,7 @@ from datetime import date
 from typing import Any
 
 import httpx
-from sqlalchemy import func, select
+from sqlalchemy import bindparam, func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
@@ -79,6 +79,10 @@ DEFAULT_CONCURRENCY = 12
 DISCOVER_PAGE_SIZE = 20  # fixed by TMDB
 MAX_CAST_PER_MOVIE = 15
 CREW_JOBS_KEPT = ("Director", "Writer", "Screenplay", "Story", "Producer")
+# Movies written per transaction. Bounds each batch's worst case (~15 cast +
+# ~5 crew + ~10 genres/keywords per movie) well under Postgres's 65,535
+# bound-parameter ceiling, and keeps a run resumable if interrupted.
+WRITE_BATCH_SIZE = 200
 
 _DETAIL_PARAMS = {
     "append_to_response": "videos,credits,keywords",
@@ -136,23 +140,54 @@ async def _discover_ids(
     page = 1
     max_pages = 500  # TMDB's own ceiling
 
+    started = time.perf_counter()
+
     while len(ids) < limit and page <= max_pages:
-        response = await client.get(
-            "/discover/movie",
-            headers=headers,
-            params={
-                **params,
-                "sort_by": "popularity.desc",
-                "primary_release_date.gte": f"{start_year}-01-01",
-                "primary_release_date.lte": f"{end_year}-12-31",
-                "include_adult": "false",
-                "page": page,
-            },
-        )
-        if response.status_code in (401, 403):
-            raise TMDBAuthError("TMDB rejected the configured credentials.")
-        response.raise_for_status()
-        body = response.json()
+        body = None
+        for attempt in range(MAX_RETRIES):
+            try:
+                response = await client.get(
+                    "/discover/movie",
+                    headers=headers,
+                    params={
+                        **params,
+                        "sort_by": "popularity.desc",
+                        "primary_release_date.gte": f"{start_year}-01-01",
+                        "primary_release_date.lte": f"{end_year}-12-31",
+                        "include_adult": "false",
+                        "page": page,
+                    },
+                    timeout=httpx.Timeout(20.0),
+                )
+            except httpx.HTTPError as exc:
+                if attempt == MAX_RETRIES - 1:
+                    print(f"  page {page}: giving up after retries ({exc})", flush=True)
+                    return ids[:limit]
+                await asyncio.sleep(_backoff(attempt))
+                continue
+
+            if response.status_code in (401, 403):
+                raise TMDBAuthError("TMDB rejected the configured credentials.")
+            if response.status_code == 429:
+                retry_after = response.headers.get("Retry-After")
+                delay = float(retry_after) if retry_after else _backoff(attempt)
+                print(f"  page {page}: TMDB 429, sleeping {delay:.1f}s", flush=True)
+                await asyncio.sleep(delay)
+                continue
+            if response.status_code >= 500:
+                if attempt == MAX_RETRIES - 1:
+                    print(f"  page {page}: giving up after HTTP {response.status_code}", flush=True)
+                    return ids[:limit]
+                await asyncio.sleep(_backoff(attempt))
+                continue
+
+            response.raise_for_status()
+            body = response.json()
+            break
+
+        if body is None:
+            break
+
         results = body.get("results") or []
         if not results:
             break
@@ -165,6 +200,14 @@ async def _discover_ids(
             ids.append(int(tmdb_id))
             if len(ids) >= limit:
                 break
+
+        if page % 25 == 0 or page == 1:
+            elapsed = time.perf_counter() - started
+            print(
+                f"  discover page {page}/{min(max_pages, int(body.get('total_pages') or max_pages))}  "
+                f"({len(ids):,} ids so far, {elapsed:.0f}s elapsed)",
+                flush=True,
+            )
 
         if page >= int(body.get("total_pages") or 1):
             break
@@ -288,26 +331,32 @@ def _write_movies(session: Session, movies: list[NewMovie], start_row_index: int
         return counts
 
     # --- dimensions: genres, keywords, people (upsert; shared across movies) ---
+    #
+    # Each upsert uses executemany (a list of dicts passed as the second
+    # `execute()` argument, matched against a single bindparam-based
+    # statement) rather than `.values([...])`, which inlines every row into
+    # one VALUES clause and blew past Postgres's 65,535-bound-parameter limit
+    # once a batch spans a few thousand movies' worth of people/keywords.
     genre_rows = {gid: name for m in movies for gid, name in m.genres}
     if genre_rows:
-        statement = insert(Genre).values(
-            [{"id": gid, "name": name} for gid, name in genre_rows.items()]
-        )
+        statement = insert(Genre).values(id=bindparam("id"), name=bindparam("name"))
         statement = statement.on_conflict_do_update(
             index_elements=["id"], set_={"name": statement.excluded.name}
         )
-        session.execute(statement)
+        session.execute(
+            statement, [{"id": gid, "name": name} for gid, name in genre_rows.items()]
+        )
         counts["genres"] = len(genre_rows)
 
     keyword_rows = {kid: name for m in movies for kid, name in m.keywords}
     if keyword_rows:
-        statement = insert(Keyword).values(
-            [{"id": kid, "name": name} for kid, name in keyword_rows.items()]
-        )
+        statement = insert(Keyword).values(id=bindparam("id"), name=bindparam("name"))
         statement = statement.on_conflict_do_update(
             index_elements=["id"], set_={"name": statement.excluded.name}
         )
-        session.execute(statement)
+        session.execute(
+            statement, [{"id": kid, "name": name} for kid, name in keyword_rows.items()]
+        )
         counts["keywords"] = len(keyword_rows)
 
     people_rows: dict[int, dict[str, Any]] = {}
@@ -324,7 +373,12 @@ def _write_movies(session: Session, movies: list[NewMovie], start_row_index: int
                 },
             )
     if people_rows:
-        statement = insert(Person).values(list(people_rows.values()))
+        statement = insert(Person).values(
+            id=bindparam("id"),
+            name=bindparam("name"),
+            profile_path=bindparam("profile_path"),
+            gender=bindparam("gender"),
+        )
         statement = statement.on_conflict_do_update(
             index_elements=["id"],
             set_={
@@ -333,7 +387,7 @@ def _write_movies(session: Session, movies: list[NewMovie], start_row_index: int
                 "gender": statement.excluded.gender,
             },
         )
-        session.execute(statement)
+        session.execute(statement, list(people_rows.values()))
         counts["people"] = len(people_rows)
 
     # --- the movies themselves, plus bridges/credits (plain insert: all new) ---
@@ -545,10 +599,27 @@ def main() -> int:
         print("\n--dry-run (default): nothing written. Re-run with --apply to write.")
         return 0
 
+    # Written in bounded batches, each its own transaction: keeps any single
+    # statement's bound-parameter count well under Postgres's 65,535 limit,
+    # and means an interruption partway through keeps everything written so
+    # far (row_index continues from whatever is already in the table).
+    total_counts: dict[str, int] = {}
+    written = 0
     with SessionLocal() as session:
         start_row_index = _next_row_index(session)
-        counts = _write_movies(session, movies, start_row_index)
-        session.commit()
+
+    for batch_start in range(0, len(movies), WRITE_BATCH_SIZE):
+        batch = movies[batch_start : batch_start + WRITE_BATCH_SIZE]
+        with SessionLocal() as session:
+            row_index = _next_row_index(session)
+            batch_counts = _write_movies(session, batch, row_index)
+            session.commit()
+        for table, count in batch_counts.items():
+            total_counts[table] = total_counts.get(table, 0) + count
+        written += len(batch)
+        print(f"  wrote {written:,}/{len(movies):,} movies", flush=True)
+
+    counts = total_counts
 
     print()
     print(rule)
