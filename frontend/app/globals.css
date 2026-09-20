@@ -1,26 +1,127 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/*
+ * VaultStream theme. Dark-first: an OTT product is viewed in dim rooms and the
+ * UI should recede so artwork carries the page.
+ */
+@theme {
+  /* Surfaces, from deepest background up to raised cards */
+  --color-vault-950: #07080c;
+  --color-vault-900: #0b0d13;
+  --color-vault-850: #101319;
+  --color-vault-800: #161a22;
+  --color-vault-700: #1f242e;
+  --color-vault-600: #2b323f;
+  --color-vault-500: #3c4553;
+
+  /* Text */
+  --color-vault-text: #f2f4f8;
+  --color-vault-muted: #9aa3b2;
+  --color-vault-faint: #6b7382;
+
+  /* Brand accent: a warm amber reads as "premium" against cool greys and
+     keeps contrast on dark surfaces. */
+  --color-brand-300: #ffd479;
+  --color-brand-400: #ffc247;
+  --color-brand-500: #f5a623;
+  --color-brand-600: #d4860c;
+
+  --color-positive: #4ade80;
+  --color-warning: #fbbf24;
+  --color-negative: #f87171;
+
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+
+  --radius-card: 0.625rem;
+
+  --shadow-poster: 0 8px 24px -6px rgb(0 0 0 / 0.65);
+  --shadow-raised: 0 16px 48px -12px rgb(0 0 0 / 0.75);
+
+  --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+@layer base {
+  html {
+    color-scheme: dark;
+    scrollbar-gutter: stable;
+  }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+  body {
+    background-color: var(--color-vault-950);
+    color: var(--color-vault-text);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /*
+   * A single visible focus style for keyboard users everywhere. Uses
+   * :focus-visible so mouse clicks don't paint rings, but keyboard and
+   * screen-reader navigation always do.
+   */
+  :focus-visible {
+    outline: 2px solid var(--color-brand-400);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+
+  ::selection {
+    background-color: var(--color-brand-500);
+    color: var(--color-vault-950);
+  }
+
+  /* Respect users who ask for reduced motion. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@layer utilities {
+  /* Visible only to assistive tech, until focused (used by the skip link). */
+  .sr-only-focusable:not(:focus):not(:active) {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .text-balance-title {
+    text-wrap: balance;
+  }
+
+  /* Fades the bottom of hero artwork into the page background. */
+  .hero-fade {
+    mask-image: linear-gradient(to bottom, black 45%, transparent 100%);
+  }
+
+  .shimmer {
+    background-image: linear-gradient(
+      100deg,
+      transparent 20%,
+      rgb(255 255 255 / 0.06) 40%,
+      transparent 60%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.4s var(--ease-out-quart) infinite;
+  }
+}
+
+@keyframes shimmer {
+  from {
+    background-position: 180% 0;
+  }
+  to {
+    background-position: -20% 0;
+  }
 }
