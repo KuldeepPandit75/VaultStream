@@ -53,9 +53,23 @@ def _l2_normalize(matrix: sp.csr_matrix) -> sp.csr_matrix:
     # repeating each row's scale factor across that row's stored values. Avoids
     # building a 45k x 45k diagonal matrix and a sparse matmul.
     squared = matrix.data * matrix.data
-    norms = np.sqrt(np.add.reduceat(squared, matrix.indptr[:-1]))
-    # reduceat yields a garbage entry for empty rows; force those to zero.
     row_lengths = np.diff(matrix.indptr)
+
+    if squared.size == 0:
+        # The whole matrix is empty (every row has zero stored values).
+        # reduceat requires at least one valid index into a non-empty array,
+        # so there is nothing to reduce -- every row's norm is just 0.
+        norms = np.zeros(row_lengths.shape[0], dtype=np.float64)
+    else:
+        # reduceat requires every index to be < len(squared). A row (or a run
+        # of trailing rows) with zero stored values pushes indptr[:-1] up to
+        # exactly len(squared) once it is the last row -- e.g. a movie with no
+        # tags/features at all sits at the end of the matrix. Clip those
+        # indices into range; reduceat then yields a garbage value for that
+        # slot, which the row_lengths == 0 masking below discards anyway.
+        safe_starts = np.minimum(matrix.indptr[:-1], squared.size - 1)
+        norms = np.sqrt(np.add.reduceat(squared, safe_starts))
+    # reduceat yields a garbage entry for empty rows; force those to zero.
     norms[row_lengths == 0] = 0.0
 
     inverse = np.zeros_like(norms, dtype=np.float32)

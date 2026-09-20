@@ -297,6 +297,28 @@ def test_l2_normalize_produces_unit_rows_and_tolerates_empty_rows() -> None:
     assert normalised.dtype == np.float32
 
 
+def test_l2_normalize_tolerates_trailing_empty_rows() -> None:
+    """Regression: a movie with no tags/features sitting at the end of the
+    matrix pushed indptr[:-1] to exactly len(data), which IndexError'd in
+    np.add.reduceat since every index into reduceat must be < len(data)."""
+    dense = np.array([[1, 1, 0], [0, 0, 5], [0, 0, 0], [0, 0, 0]], dtype=np.int64)
+    normalised = _l2_normalize(densify_to_csr(dense))
+
+    norms = np.sqrt(np.asarray(normalised.multiply(normalised).sum(axis=1))).ravel()
+    assert norms[0] == pytest.approx(1.0)
+    assert norms[1] == pytest.approx(1.0)
+    assert norms[2] == 0.0
+    assert norms[3] == 0.0
+    assert not np.isnan(normalised.data).any()
+
+
+def test_l2_normalize_tolerates_an_entirely_empty_matrix() -> None:
+    dense = np.zeros((3, 4), dtype=np.int64)
+    normalised = _l2_normalize(densify_to_csr(dense))
+    assert normalised.nnz == 0
+    assert normalised.shape == (3, 4)
+
+
 def test_normalized_dot_product_equals_cosine_similarity() -> None:
     """Cosine similarity reduces to a dot product once rows are unit length."""
     dense = np.array([[1, 1, 0], [1, 1, 0], [0, 0, 5]], dtype=np.int64)
