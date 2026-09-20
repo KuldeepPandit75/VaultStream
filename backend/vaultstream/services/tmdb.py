@@ -14,7 +14,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import random
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 import httpx
@@ -41,6 +41,14 @@ class TMDBNotConfigured(RuntimeError):
 
 
 @dataclass(slots=True)
+class CastProfile:
+    """A cast/crew member's id and current TMDB profile image path."""
+
+    person_id: int
+    profile_path: str | None
+
+
+@dataclass(slots=True)
 class MediaPayload:
     """Parsed subset of a TMDB movie response."""
 
@@ -51,6 +59,8 @@ class MediaPayload:
     trailer_site: str | None = None
     trailer_type: str | None = None
     trailer_name: str | None = None
+    # Present only when the request appended `credits`; refreshes cast/crew photos.
+    profiles: list[CastProfile] = field(default_factory=list)
     not_found: bool = False
     error: str | None = None
 
@@ -106,6 +116,35 @@ def select_trailer(videos: list[dict[str, Any]]) -> dict[str, Any] | None:
     return same_rank[0]
 
 
+def _parse_profiles(body: dict[str, Any]) -> list[CastProfile]:
+    """Extract (person_id, profile_path) for every cast and crew member.
+
+    Present only when the request appended `credits`. One movie call refreshes
+    every person's photo for that film, which is far cheaper than one call per
+    person: ~44k movie requests versus ~194k person requests for this catalogue.
+    """
+    credits_block = body.get("credits") or {}
+    members = (credits_block.get("cast") or []) + (credits_block.get("crew") or [])
+
+    profiles: dict[int, str | None] = {}
+    for member in members:
+        if not isinstance(member, dict):
+            continue
+        person_id = member.get("id")
+        if person_id is None:
+            continue
+        # A person may appear in both cast and crew; keep whichever has a photo.
+        existing = profiles.get(person_id)
+        candidate = member.get("profile_path")
+        if existing is None or (candidate and not existing):
+            profiles[person_id] = candidate
+
+    return [
+        CastProfile(person_id=person_id, profile_path=path)
+        for person_id, path in profiles.items()
+    ]
+
+
 def parse_media_payload(tmdb_id: int, body: dict[str, Any]) -> MediaPayload:
     """Turn a TMDB movie response into a MediaPayload."""
     videos = ((body.get("videos") or {}).get("results")) or []
@@ -119,6 +158,7 @@ def parse_media_payload(tmdb_id: int, body: dict[str, Any]) -> MediaPayload:
         trailer_site=(trailer or {}).get("site"),
         trailer_type=(trailer or {}).get("type"),
         trailer_name=(trailer or {}).get("name"),
+        profiles=_parse_profiles(body),
     )
 
 
@@ -126,7 +166,8 @@ def _movie_path(tmdb_id: int) -> str:
     return f"/movie/{tmdb_id}"
 
 
-_REQUEST_PARAMS = {"append_to_response": "videos", "language": "en-US"}
+# `credits` is appended so one request refreshes cast/crew profile photos too.
+_REQUEST_PARAMS = {"append_to_response": "videos,credits", "language": "en-US"}
 
 
 def fetch_media_sync(tmdb_id: int, client: httpx.Client | None = None) -> MediaPayload:

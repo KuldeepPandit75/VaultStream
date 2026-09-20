@@ -199,7 +199,33 @@ def test_parse_media_payload_tolerates_missing_fields() -> None:
     payload = parse_media_payload(1, {})
     assert payload.poster_path is None
     assert payload.trailer_key is None
+    assert payload.profiles == []
     assert payload.ok is True  # absent data is not an error
+
+
+def test_parse_media_payload_extracts_cast_and_crew_profiles() -> None:
+    body = {
+        **TOY_STORY_RESPONSE,
+        "credits": {
+            "cast": [
+                {"id": 31, "name": "Tom Hanks", "profile_path": "/th.jpg"},
+                {"id": 12898, "name": "Tim Allen", "profile_path": None},
+            ],
+            "crew": [
+                {"id": 7879, "name": "John Lasseter", "profile_path": "/jl.jpg"},
+                # Same person could appear twice; a real photo must not be
+                # overwritten by a later null.
+                {"id": 31, "name": "Tom Hanks", "profile_path": None},
+            ],
+        },
+    }
+    payload = parse_media_payload(862, body)
+    by_id = {profile.person_id: profile.profile_path for profile in payload.profiles}
+
+    assert by_id[31] == "/th.jpg"
+    assert by_id[12898] is None
+    assert by_id[7879] == "/jl.jpg"
+    assert len(payload.profiles) == 3
 
 
 # --------------------------------------------------------------------------- #
@@ -215,7 +241,7 @@ def test_fetch_media_sync_success(tmdb_key: None) -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         # base_url already carries the /3 API version prefix.
         assert request.url.path.endswith("/movie/862")
-        assert request.url.params["append_to_response"] == "videos"
+        assert request.url.params["append_to_response"] == "videos,credits"
         return httpx.Response(200, json=TOY_STORY_RESPONSE)
 
     payload = tmdb_service.fetch_media_sync(862, client=_client(handler))

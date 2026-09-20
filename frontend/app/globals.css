@@ -70,11 +70,11 @@
     color: var(--color-vault-950);
   }
 
-  /* Respect users who ask for reduced motion. */
+  /* Respect users who ask for reduced motion, but allow explicit opt-outs. */
   @media (prefers-reduced-motion: reduce) {
-    *,
-    *::before,
-    *::after {
+    *:not(.force-motion),
+    *:not(.force-motion)::before,
+    *:not(.force-motion)::after {
       animation-duration: 0.01ms !important;
       animation-iteration-count: 1 !important;
       transition-duration: 0.01ms !important;
@@ -115,6 +115,21 @@
     background-size: 200% 100%;
     animation: shimmer 1.4s var(--ease-out-quart) infinite;
   }
+
+  .animate-fade-in-up {
+    animation: fade-in-up 0.6s var(--ease-out-quart) both;
+  }
+}
+
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 @keyframes shimmer {
@@ -123,5 +138,14 @@
   }
   to {
     background-position: -20% 0;
+  }
+}
+
+@keyframes hero-progress {
+  from {
+    width: 0%;
+  }
+  to {
+    width: 100%;
   }
 }

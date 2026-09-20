@@ -2,16 +2,16 @@ import Link from "next/link";
 import { Suspense } from "react";
 
 import { ContinueWatchingRow } from "@/components/catalog/ContinueWatchingRow";
+import { HeroCarousel } from "@/components/catalog/HeroCarousel";
 import { MovieGrid, MovieGridSkeleton } from "@/components/catalog/MovieGrid";
 import { RecommendationRows } from "@/components/catalog/RecommendationRows";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ApiError, listMovies } from "@/lib/api";
 import type { MovieSummary } from "@/lib/types";
 
-/**
- * Interim landing page. Task 15 replaces this with the full hero + carousel
- * home page once auth, watch history, and recommendations exist.
- */
+/** How many hero slides to show in the carousel. */
+const HERO_COUNT = 5;
+
 type TrendingResult =
   | { ok: true; items: MovieSummary[] }
   | { ok: false; message: string };
@@ -25,7 +25,7 @@ async function loadTrending(): Promise<TrendingResult> {
     const page = await listMovies({
       sort: "popularity",
       order: "desc",
-      page_size: 14,
+      page_size: 20,
     });
     return { ok: true, items: page.items };
   } catch (error) {
@@ -65,57 +65,63 @@ async function TrendingStrip() {
   if (!result.ok) {
     return <EmptyState title="Catalogue unavailable" description={result.message} />;
   }
-  return <MovieGrid movies={result.items} label="Trending now" />;
+
+  // Movies with backdrops go to the hero carousel; the rest fill the grid.
+  const withBackdrop = result.items.filter((m) => m.backdrop_url);
+  const heroMovies = withBackdrop.slice(0, HERO_COUNT);
+  const gridMovies = result.items.filter(
+    (m) => !heroMovies.includes(m),
+  );
+
+  return (
+    <>
+      {heroMovies.length > 0 && <HeroCarousel movies={heroMovies} />}
+
+      <div className="mx-auto max-w-[1600px] px-4 sm:px-6 lg:px-8">
+        {/* Each of these renders nothing when anonymous or when it has no data. */}
+        <div className="mt-10 space-y-12">
+          <Suspense fallback={<RowSkeleton label="Continue watching" />}>
+            <ContinueWatchingRow />
+          </Suspense>
+
+          <Suspense fallback={<RowSkeleton label="Top picks for you" />}>
+            <RecommendationRows />
+          </Suspense>
+        </div>
+
+        {gridMovies.length > 0 && (
+          <section className="mt-12" aria-labelledby="trending-heading">
+            <h2
+              id="trending-heading"
+              className="mb-5 text-xl font-semibold tracking-tight"
+            >
+              Trending now
+            </h2>
+            <MovieGrid movies={gridMovies} label="Trending now" />
+          </section>
+        )}
+      </div>
+    </>
+  );
 }
 
 export default function HomePage() {
   return (
-    <div className="mx-auto max-w-[1600px] px-4 py-12 sm:px-6 lg:px-8">
-      <section className="max-w-2xl">
-        <h1 className="text-balance-title text-4xl font-bold tracking-tight sm:text-5xl">
-          Over 44,000 films.{" "}
-          <span className="text-brand-400">One catalogue.</span>
-        </h1>
-        <p className="mt-4 text-base leading-relaxed text-vault-muted">
-          Search decades of cinema, explore cast and crew, and watch official
-          trailers. Sign in later to get recommendations based on what you
-          watch.
-        </p>
-        <div className="mt-8 flex flex-wrap gap-3">
-          <Link
-            href="/browse"
-            className="rounded-full bg-brand-500 px-6 py-3 text-sm font-semibold text-vault-950 transition-colors hover:bg-brand-400"
-          >
-            Browse the catalogue
-          </Link>
-          <Link
-            href="/browse?sort=rating&order=desc&min_rating=8"
-            className="rounded-full border border-vault-700 px-6 py-3 text-sm font-semibold text-vault-text transition-colors hover:border-brand-500 hover:text-brand-300"
-          >
-            Top rated
-          </Link>
+    <Suspense
+      fallback={
+        <div className="mx-auto max-w-[1600px] px-4 py-12 sm:px-6 lg:px-8">
+          {/* Hero skeleton */}
+          <div
+            className="shimmer w-full rounded-xl bg-vault-850"
+            style={{ height: "clamp(400px, 60vh, 700px)" }}
+          />
+          <div className="mt-12">
+            <MovieGridSkeleton count={14} />
+          </div>
         </div>
-      </section>
-
-      {/* Each of these renders nothing when anonymous or when it has no data. */}
-      <div className="mt-16 space-y-12">
-        <Suspense fallback={<RowSkeleton label="Continue watching" />}>
-          <ContinueWatchingRow />
-        </Suspense>
-
-        <Suspense fallback={<RowSkeleton label="Top picks for you" />}>
-          <RecommendationRows />
-        </Suspense>
-      </div>
-
-      <section className="mt-12" aria-labelledby="trending-heading">
-        <h2 id="trending-heading" className="mb-5 text-xl font-semibold tracking-tight">
-          Trending now
-        </h2>
-        <Suspense fallback={<MovieGridSkeleton count={14} />}>
-          <TrendingStrip />
-        </Suspense>
-      </section>
-    </div>
+      }
+    >
+      <TrendingStrip />
+    </Suspense>
   );
 }

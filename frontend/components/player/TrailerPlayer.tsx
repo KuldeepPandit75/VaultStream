@@ -70,13 +70,6 @@ export function TrailerPlayer({
       .then((YT) => {
         if (cancelled || !mountRef.current) return;
 
-        // Autoplay is suppressed for users who ask for reduced motion; a
-        // trailer starting itself is exactly the kind of movement they opt out
-        // of. Everyone else gets the expected OTT behaviour.
-        const prefersReducedMotion = window.matchMedia(
-          "(prefers-reduced-motion: reduce)",
-        ).matches;
-
         playerRef.current = new YT.Player(mountRef.current, {
           videoId: videoKey,
           playerVars: {
@@ -86,8 +79,9 @@ export function TrailerPlayer({
             rel: 0,
             playsinline: 1,
             iv_load_policy: 3,
+            cc_load_policy: 0,
             enablejsapi: 1,
-            autoplay: prefersReducedMotion ? 0 : 1,
+            autoplay: 1,
             start: Math.max(0, Math.floor(startAt)),
             origin: window.location.origin,
           },
@@ -350,8 +344,11 @@ export function TrailerPlayer({
         isFullscreen ? "h-screen" : "aspect-video rounded-xl"
       } ${showChrome || !isPlaying ? "cursor-auto" : "cursor-none"}`}
     >
-      {/* The API replaces this node with the iframe. */}
-      <div className="absolute inset-0">
+      {/* The YouTube API replaces the mount div with an iframe.
+          pointer-events-none stops hover-triggered overlays; scaling the
+          iframe beyond the overflow-hidden container crops YouTube's
+          edge branding (title bar, logo watermark) out of view. */}
+      <div className="pointer-events-none absolute inset-0 overflow-hidden [&>iframe]:origin-center [&>iframe]:scale-[1.15]">
         <div ref={mountRef} className="size-full" />
       </div>
 

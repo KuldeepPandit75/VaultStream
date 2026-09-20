@@ -26,11 +26,11 @@ import asyncio
 import time
 
 import httpx
-from sqlalchemy import distinct, select
+from sqlalchemy import bindparam, distinct, select, update
 
 from vaultstream.config import get_settings
 from vaultstream.db import SessionLocal
-from vaultstream.models.catalog import Movie
+from vaultstream.models.catalog import Movie, Person
 from vaultstream.models.media import MovieMedia
 from vaultstream.services import media as media_service
 from vaultstream.services.tmdb import (
@@ -42,6 +42,53 @@ from vaultstream.services.tmdb import (
 
 # Rows are committed in batches so an interrupted run keeps its progress.
 COMMIT_EVERY = 250
+
+
+def _store_profiles(session, payloads: list[MediaPayload]) -> int:
+    """Update refreshed profile_path values for people already in the catalogue.
+
+    A plain UPDATE, not an upsert: `people.name` is NOT NULL and TMDB's credits
+    payload does not reliably include it, so inserting an unknown person id
+    would violate that constraint. Rows not already in `people` (from the
+    original credits.pkl import) are simply skipped -- nothing references them.
+    """
+    updates: dict[int, str] = {}
+    for payload in payloads:
+        for profile in payload.profiles:
+            if profile.profile_path:
+                updates[profile.person_id] = profile.profile_path
+
+    if not updates:
+        return 0
+
+    known_ids = {
+        int(value)
+        for value in session.execute(
+            select(Person.id).where(Person.id.in_(list(updates)))
+        )
+        .scalars()
+        .all()
+    }
+    if not known_ids:
+        return 0
+
+    # executemany-style bulk update: one round trip for the whole batch instead
+    # of one UPDATE per person, which matters at this table's scale (194k rows).
+    # Executed against the Core table, not the ORM entity: the ORM's bulk
+    # UPDATE-by-primary-key path insists on PK-shaped parameter names and
+    # rejects a plain WHERE + bindparam combination (InvalidRequestError).
+    # Core has no such restriction.
+    table = Person.__table__
+    session.execute(
+        table.update()
+        .where(table.c.id == bindparam("_id"))
+        .values(profile_path=bindparam("_profile_path")),
+        [
+            {"_id": person_id, "_profile_path": updates[person_id]}
+            for person_id in known_ids
+        ],
+    )
+    return len(known_ids)
 
 
 def _pending_ids(force: bool, limit: int | None, order: str) -> list[int]:
@@ -90,7 +137,7 @@ async def _run(ids: list[int], concurrency: int) -> dict[str, int]:
 
     semaphore = asyncio.Semaphore(concurrency)
     counters = {"fetched": 0, "posters": 0, "backdrops": 0, "trailers": 0,
-                "not_found": 0, "errors": 0}
+                "profiles": 0, "not_found": 0, "errors": 0}
     started = time.perf_counter()
     buffer: list[MediaPayload] = []
 
@@ -100,6 +147,7 @@ async def _run(ids: list[int], concurrency: int) -> dict[str, int]:
             return
         with SessionLocal() as session:
             media_service.store(session, buffer)
+            counters["profiles"] += _store_profiles(session, buffer)
             session.commit()
         buffer = []
 
@@ -140,6 +188,7 @@ async def _run(ids: list[int], concurrency: int) -> dict[str, int]:
                     f"{rate:5.1f} req/s  "
                     f"posters={counters['posters']:,} "
                     f"trailers={counters['trailers']:,} "
+                    f"profiles={counters['profiles']:,} "
                     f"404={counters['not_found']:,} "
                     f"err={counters['errors']:,}  "
                     f"eta={remaining / 60:.1f}m",
