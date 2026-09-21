@@ -50,7 +50,7 @@ backend/.env
 # Large dataset pickles + generated vector matrix (regenerate via ETL, see README).
 # Remove these lines if you want the dataset committed.
 backend/*.pkl
-backend/data/*.npz
+# backend/data/*.npz
 
 backend/**/node_modules/
 backend/**/.env*
