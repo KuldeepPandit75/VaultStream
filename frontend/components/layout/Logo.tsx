@@ -15,7 +15,7 @@ export function Logo({ className = "" }: { className?: string }) {
         height={32}
         className="size-8 rounded-md transition-transform duration-300 ease-out-quart group-hover:scale-105"
       />
-      <span className="text-lg font-semibold tracking-tight">
+      <span className="hidden text-lg font-semibold tracking-tight sm:inline-block">
         Vault<span className="text-brand-400">Stream</span>
       </span>
     </Link>

@@ -14,38 +14,45 @@ export function SearchBox({ className = "" }: { className?: string }) {
 
   const urlQuery = searchParams.get("q") ?? "";
   const [value, setValue] = useState(urlQuery);
-  const [syncedQuery, setSyncedQuery] = useState(urlQuery);
+  const [lastPushedQuery, setLastPushedQuery] = useState(urlQuery);
   const isFirstRender = useRef(true);
 
-  // Keep the input in sync when navigation changes the URL (back button, links).
-  // Adjusted during render rather than in an effect: an effect here would cause
-  // a cascading re-render on every navigation.
-  if (urlQuery !== syncedQuery) {
-    setSyncedQuery(urlQuery);
-    setValue(urlQuery);
-  }
+  // Sync from URL only if the URL changes externally (e.g. back button).
+  useEffect(() => {
+    if (urlQuery !== lastPushedQuery) {
+      setValue(urlQuery);
+      setLastPushedQuery(urlQuery);
+    }
+  }, [urlQuery, lastPushedQuery]);
 
   useEffect(() => {
     if (isFirstRender.current) {
       isFirstRender.current = false;
       return;
     }
-    if (value === urlQuery) return;
 
     const timer = setTimeout(() => {
+      const trimmed = value.trim();
+      // If the debounced value equals the last pushed query, no need to push again.
+      if (trimmed === lastPushedQuery) return;
+
       const params = new URLSearchParams(searchParams.toString());
-      if (value.trim()) {
-        params.set("q", value.trim());
+      if (trimmed) {
+        params.set("q", trimmed);
       } else {
         params.delete("q");
       }
       // A new query means a new result set; never keep the old page offset.
       params.delete("page");
+
+      const newUrlQuery = params.get("q") ?? "";
+      setLastPushedQuery(newUrlQuery);
+      
       router.push(`/browse?${params.toString()}`);
     }, 350);
 
     return () => clearTimeout(timer);
-  }, [value, urlQuery, router, searchParams]);
+  }, [value, router, searchParams, lastPushedQuery]);
 
   return (
     <search className={className}>

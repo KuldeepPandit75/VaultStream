@@ -63,7 +63,7 @@ export function SiteHeader() {
           </ul>
         </nav>
 
-        <div className="ml-auto w-full max-w-[14rem] sm:max-w-xs">
+        <div className="ml-auto flex-1 min-w-0 sm:flex-initial sm:w-full sm:max-w-xs">
           {/* SearchBox reads useSearchParams, which requires a Suspense boundary. */}
           <Suspense fallback={<div className="h-9 rounded-full bg-vault-850" />}>
             <SearchBox />
